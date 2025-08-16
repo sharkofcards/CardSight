@@ -1,5 +1,4 @@
-
-streamlit
-pandas
-requests
-tomli
+streamlit==1.26.0
+requests==2.31.0
+pandas==2.1.0
+tomli==2.0.1

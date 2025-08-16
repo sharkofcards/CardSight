@@ -1,4 +1,5 @@
-streamlit
-requests
-pandas
-matplotlib
+streamlit==1.26.0
+requests==2.31.0
+pandas==2.1.0
+matplotlib==3.7.2
+tomli==2.0.1

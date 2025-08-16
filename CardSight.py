@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 # ==============================
 # 🔑 eBay API credentials
-# Replace with your actual info
+# Replace with your actual info or load from TOML
 # ==============================
 EBAY_APP_ID = "WesleyBo-CardSigh-PRD-8812e667d-492286dd"
 EBAY_CERT_ID = "PRD-812e667daac9-d0b9-48c0-a474-785c"
@@ -133,32 +133,5 @@ if search_term:
         fig, ax = plt.subplots()
         ax.hist(df["Price"], bins=10)
         ax.set_title("Distribution of Sale Prices")
-        ax.set_xlabel("Price ($)")
-        ax.set_ylabel("Count")
-        st.pyplot(fig)
+        a
 
-        # Results
-        st.subheader("📋 Sales Results")
-        pop_links = get_pop_report_links(search_term)
-        for _, row in df.iterrows():
-            with st.expander(row["Title"], expanded=False):
-                st.write(f"💲 Price: {row['Price']} {row['Currency']}")
-                st.write(f"📅 End Date: {row['End Date']}")
-                st.markdown(f"🔗 [View on eBay]({row['URL']})")
-
-                # Pop report links
-                st.write("📊 Population Reports:")
-                st.markdown(f"- [PSA]({pop_links['PSA']})")
-                st.markdown(f"- [BGS]({pop_links['BGS']})")
-                st.markdown(f"- [SGC]({pop_links['SGC']})")
-
-        # Download option
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label="Download CSV",
-            data=csv,
-            file_name=f"{search_term.replace(' ', '_')}_sales.csv",
-            mime="text/csv"
-        )
-    else:
-        st.warning("No results found.")

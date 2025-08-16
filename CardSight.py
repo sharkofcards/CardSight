@@ -3,24 +3,13 @@ import base64
 import time
 import pandas as pd
 import streamlit as st
-import tomllib  # built-in in Python 3.11+
-import os
 
 # ==============================
-# Load eBay credentials from config.toml
+# 🔑 eBay API credentials via Streamlit Secrets
 # ==============================
-CONFIG_PATH = "config.toml"
-
-if not os.path.exists(CONFIG_PATH):
-    st.error("Missing config.toml file with eBay credentials.")
-    st.stop()
-
-with open(CONFIG_PATH, "rb") as f:
-    config = tomllib.load(f)
-
-EBAY_APP_ID = config["ebay"]["app_id"]
-EBAY_CERT_ID = config["ebay"]["cert_id"]
-EBAY_REDIRECT_URI = config["ebay"]["redirect_uri"]
+EBAY_APP_ID = st.secrets["ebay"]["app_id"]
+EBAY_CERT_ID = st.secrets["ebay"]["cert_id"]
+EBAY_REDIRECT_URI = st.secrets["ebay"]["redirect_uri"]
 
 # Token cache
 token_cache = {"access_token": None, "expires_at": 0}
@@ -30,7 +19,6 @@ token_cache = {"access_token": None, "expires_at": 0}
 # ==============================
 def get_ebay_oauth_token():
     global token_cache
-
     if token_cache["access_token"] and time.time() < token_cache["expires_at"]:
         return token_cache["access_token"]
 
@@ -90,12 +78,14 @@ def get_pop_report_links(query):
     }
 
 # ==============================
-# Streamlit App
+# Streamlit App - CardSight
 # ==============================
 st.set_page_config(page_title="CardSight", page_icon="🃏", layout="wide")
+
 st.title("CardSight: Sports Card Comp & Pop Lookup")
 st.info("Search for a sports card to view past eBay sales and grading population reports.")
 
+# Search input
 search_term = st.text_input("Enter a card/player name:", "")
 
 if search_term:
@@ -129,11 +119,6 @@ if search_term:
         col1.metric("Total Sales Found", len(df))
         col2.metric("Average Price", f"${df['Price'].mean():.2f}")
 
-        # Chart - Price Distribution using Streamlit
-        st.subheader("📊 Price Distribution")
-        price_counts = df["Price"].value_counts().sort_index()
-        st.bar_chart(price_counts)
-
         # Results
         st.subheader("📋 Sales Results")
         pop_links = get_pop_report_links(search_term)
@@ -142,12 +127,14 @@ if search_term:
                 st.write(f"💲 Price: {row['Price']} {row['Currency']}")
                 st.write(f"📅 End Date: {row['End Date']}")
                 st.markdown(f"🔗 [View on eBay]({row['URL']})")
+
+                # Pop report links
                 st.write("📊 Population Reports:")
                 st.markdown(f"- [PSA]({pop_links['PSA']})")
                 st.markdown(f"- [BGS]({pop_links['BGS']})")
                 st.markdown(f"- [SGC]({pop_links['SGC']})")
 
-        # Download CSV
+        # Download option
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button(
             label="Download CSV",

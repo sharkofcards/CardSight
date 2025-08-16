@@ -3,7 +3,7 @@ import base64
 import time
 import pandas as pd
 import streamlit as st
-import tomli
+import tomllib  # built-in in Python 3.11+
 import os
 
 # ==============================
@@ -16,7 +16,7 @@ if not os.path.exists(CONFIG_PATH):
     st.stop()
 
 with open(CONFIG_PATH, "rb") as f:
-    config = tomli.load(f)
+    config = tomllib.load(f)
 
 EBAY_APP_ID = config["ebay"]["app_id"]
 EBAY_CERT_ID = config["ebay"]["cert_id"]

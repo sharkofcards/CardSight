@@ -3,6 +3,12 @@ import base64
 import time
 import pandas as pd
 import streamlit as st
+
+# ==============================
+# Headless-safe Matplotlib setup
+# ==============================
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend for servers
 import matplotlib.pyplot as plt
 
 # ==============================

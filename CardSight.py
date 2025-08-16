@@ -1,7 +1,7 @@
 import requests
-import time
 import pandas as pd
 import streamlit as st
+from datetime import timedelta
 
 # ==============================
 # 🔑 eBay API credentials from Streamlit secrets
@@ -14,8 +14,9 @@ EBAY_APP_ID = st.secrets["ebay"]["app_id"]
 FINDING_API_URL = "https://svcs.ebay.com/services/search/FindingService/v1"
 
 # ==============================
-# Search completed/sold items
+# Search completed/sold items (cached)
 # ==============================
+@st.cache_data(ttl=600)  # Cache results for 10 minutes
 def search_sold_ebay_cards(query, limit=25):
     headers = {
         "X-EBAY-SOA-OPERATION-NAME": "findCompletedItems",
@@ -34,29 +35,31 @@ def search_sold_ebay_cards(query, limit=25):
         ]
     }
 
-    response = requests.post(FINDING_API_URL, headers=headers, json=payload)
-
-    if response.status_code == 200:
-        data = response.json()
-        items = (
-            data.get("findCompletedItemsResponse", [{}])[0]
-            .get("searchResult", [{}])[0]
-            .get("item", [])
-        )
-        results = []
-        for item in items:
-            price = float(item.get("sellingStatus", {}).get("currentPrice", {}).get("__value__", 0))
-            results.append({
-                "Title": item.get("title"),
-                "Price": price,
-                "Currency": item.get("sellingStatus", {}).get("currentPrice", {}).get("@currencyId"),
-                "End Date": item.get("listingInfo", {}).get("endTime"),
-                "URL": item.get("viewItemURL")
-            })
-        return results
-    else:
-        st.error(f"Error fetching from eBay API: {response.status_code}, {response.text}")
+    try:
+        response = requests.post(FINDING_API_URL, headers=headers, json=payload)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error fetching from eBay API: {e}")
         return []
+
+    data = response.json()
+    items = (
+        data.get("findCompletedItemsResponse", [{}])[0]
+        .get("searchResult", [{}])[0]
+        .get("item", [])
+    )
+
+    results = []
+    for item in items:
+        price = float(item.get("sellingStatus", {}).get("currentPrice", {}).get("__value__", 0))
+        results.append({
+            "Title": item.get("title"),
+            "Price": price,
+            "Currency": item.get("sellingStatus", {}).get("currentPrice", {}).get("@currencyId"),
+            "End Date": item.get("listingInfo", {}).get("endTime"),
+            "URL": item.get("viewItemURL")
+        })
+    return results
 
 # ==============================
 # Streamlit App - CardSight Sold Listings
@@ -106,4 +109,4 @@ if search_term:
             mime="text/csv"
         )
     else:
-        st.warning("No sold listings found.")
+        st.warning("No sold listings found or API limit reached.")

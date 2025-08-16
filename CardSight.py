@@ -1,17 +1,21 @@
 import requests
 import pandas as pd
 import streamlit as st
+from datetime import datetime, timedelta
 
 # ==============================
-# eBay API Credentials (from secrets)
+# eBay API Credentials
 # ==============================
 EBAY_APP_ID = st.secrets["ebay"]["app_id"]
 
 # ==============================
 # Cached function to query sold listings
 # ==============================
-@st.cache_data(ttl=600)  # cache results for 10 minutes
-def search_sold_ebay_cards(query, limit=25):
+@st.cache_data(ttl=3600)  # cache results for 1 hour
+def search_sold_ebay_cards(query, limit=10):
+    """
+    Search eBay completed listings (sold items only) using the Finding API.
+    """
     url = "https://svcs.ebay.com/services/search/FindingService/v1"
     params = {
         "OPERATION-NAME": "findCompletedItems",
@@ -28,19 +32,27 @@ def search_sold_ebay_cards(query, limit=25):
     response = requests.get(url, params=params)
     if response.status_code == 200:
         data = response.json()
-        items = data.get("findCompletedItemsResponse", [])[0].get("searchResult", [])[0].get("item", [])
+        items = (
+            data.get("findCompletedItemsResponse", [{}])[0]
+                .get("searchResult", [{}])[0]
+                .get("item", [])
+        )
         results = []
         for item in items:
+            price_info = item.get("sellingStatus", [{}])[0].get("currentPrice", [{}])[0]
             results.append({
                 "Title": item.get("title", ""),
-                "Price": float(item.get("sellingStatus", [{}])[0].get("currentPrice", [{}])[0].get("__value__", 0)),
-                "Currency": item.get("sellingStatus", [{}])[0].get("currentPrice", [{}])[0].get("@currencyId", ""),
+                "Price": float(price_info.get("__value__", 0)),
+                "Currency": price_info.get("@currencyId", ""),
                 "End Date": item.get("listingInfo", [{}])[0].get("endTime", ""),
                 "URL": item.get("viewItemURL", "")
             })
         return results
     else:
-        st.error(f"Error fetching from eBay API: {response.status_code}")
+        st.error(
+            f"Error fetching from eBay API: {response.status_code}. "
+            "This may be due to rate limits. Try again later."
+        )
         return []
 
 # ==============================
@@ -53,8 +65,8 @@ st.info("Search for a sports card to view past sold eBay sales.")
 search_term = st.text_input("Enter a card/player name:", "")
 
 if search_term:
-    with st.spinner("Fetching sold listings from eBay..."):
-        results = search_sold_ebay_cards(search_term, limit=50)
+    with st.spinner("Fetching sold listings from eBay (cached results may appear instantly)..."):
+        results = search_sold_ebay_cards(search_term, limit=10)
 
     if results:
         df = pd.DataFrame(results)
@@ -95,4 +107,4 @@ if search_term:
             mime="text/csv"
         )
     else:
-        st.warning("No sold listings found.")
+        st.warning("No sold listings found or API limit reached. Try again later.")

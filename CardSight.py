@@ -1,5 +1,4 @@
 import requests
-import time
 import pandas as pd
 import streamlit as st
 
@@ -13,9 +12,6 @@ EBAY_APP_ID = st.secrets["ebay"]["app_id"]
 # ==============================
 @st.cache_data(ttl=600)  # cache results for 10 minutes
 def search_sold_ebay_cards(query, limit=25):
-    """
-    Uses the Finding API to get sold/completed items for a query.
-    """
     url = "https://svcs.ebay.com/services/search/FindingService/v1"
     params = {
         "OPERATION-NAME": "findCompletedItems",
@@ -54,12 +50,11 @@ st.set_page_config(page_title="CardSight Sold Listings", page_icon="🃏", layou
 st.title("CardSight: Sold Listings Lookup")
 st.info("Search for a sports card to view past sold eBay sales.")
 
-# Search input
 search_term = st.text_input("Enter a card/player name:", "")
 
 if search_term:
     with st.spinner("Fetching sold listings from eBay..."):
-        results = search_sold_ebay_cards(search_term, limit=25)
+        results = search_sold_ebay_cards(search_term, limit=50)
 
     if results:
         df = pd.DataFrame(results)
@@ -78,7 +73,12 @@ if search_term:
         col1.metric("Total Sold Listings", len(df))
         col2.metric("Average Price", f"${df['Price'].mean():.2f}")
 
-        # Results
+        # Price distribution chart
+        st.subheader("📊 Sold Price Distribution")
+        price_counts = df["Price"].value_counts().sort_index()
+        st.bar_chart(price_counts)
+
+        # Results table
         st.subheader("📋 Sold Listings")
         for _, row in df.iterrows():
             with st.expander(row["Title"], expanded=False):
@@ -86,7 +86,7 @@ if search_term:
                 st.write(f"📅 End Date: {row['End Date']}")
                 st.markdown(f"🔗 [View on eBay]({row['URL']})")
 
-        # Download option
+        # Download CSV
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button(
             label="Download CSV",

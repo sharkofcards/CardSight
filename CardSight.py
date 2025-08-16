@@ -1,78 +1,64 @@
 import requests
+import time
 import pandas as pd
 import streamlit as st
-from datetime import timedelta
 
 # ==============================
-# 🔑 eBay API credentials from Streamlit secrets
+# eBay API Credentials (from secrets)
 # ==============================
 EBAY_APP_ID = st.secrets["ebay"]["app_id"]
 
 # ==============================
-# eBay Finding API
+# Cached function to query sold listings
 # ==============================
-FINDING_API_URL = "https://svcs.ebay.com/services/search/FindingService/v1"
-
-# ==============================
-# Search completed/sold items (cached)
-# ==============================
-@st.cache_data(ttl=600)  # Cache results for 10 minutes
+@st.cache_data(ttl=600)  # cache results for 10 minutes
 def search_sold_ebay_cards(query, limit=25):
-    headers = {
-        "X-EBAY-SOA-OPERATION-NAME": "findCompletedItems",
-        "X-EBAY-SOA-SERVICE-VERSION": "1.13.0",
-        "X-EBAY-SOA-REQUEST-DATA-FORMAT": "JSON",
-        "X-EBAY-SOA-SECURITY-APPNAME": EBAY_APP_ID,
-        "Content-Type": "application/json"
-    }
-
-    payload = {
+    """
+    Uses the Finding API to get sold/completed items for a query.
+    """
+    url = "https://svcs.ebay.com/services/search/FindingService/v1"
+    params = {
+        "OPERATION-NAME": "findCompletedItems",
+        "SERVICE-VERSION": "1.0.0",
+        "SECURITY-APPNAME": EBAY_APP_ID,
+        "RESPONSE-DATA-FORMAT": "JSON",
+        "REST-PAYLOAD": "true",
         "keywords": query,
-        "paginationInput": {"entriesPerPage": limit, "pageNumber": 1},
-        "itemFilter": [
-            {"name": "SoldItemsOnly", "value": "true"},
-            {"name": "ListingType", "value": "FixedPrice"}
-        ]
+        "itemFilter(0).name": "SoldItemsOnly",
+        "itemFilter(0).value": "true",
+        "paginationInput.entriesPerPage": limit
     }
 
-    try:
-        response = requests.post(FINDING_API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error fetching from eBay API: {e}")
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        data = response.json()
+        items = data.get("findCompletedItemsResponse", [])[0].get("searchResult", [])[0].get("item", [])
+        results = []
+        for item in items:
+            results.append({
+                "Title": item.get("title", ""),
+                "Price": float(item.get("sellingStatus", [{}])[0].get("currentPrice", [{}])[0].get("__value__", 0)),
+                "Currency": item.get("sellingStatus", [{}])[0].get("currentPrice", [{}])[0].get("@currencyId", ""),
+                "End Date": item.get("listingInfo", [{}])[0].get("endTime", ""),
+                "URL": item.get("viewItemURL", "")
+            })
+        return results
+    else:
+        st.error(f"Error fetching from eBay API: {response.status_code}")
         return []
 
-    data = response.json()
-    items = (
-        data.get("findCompletedItemsResponse", [{}])[0]
-        .get("searchResult", [{}])[0]
-        .get("item", [])
-    )
-
-    results = []
-    for item in items:
-        price = float(item.get("sellingStatus", {}).get("currentPrice", {}).get("__value__", 0))
-        results.append({
-            "Title": item.get("title"),
-            "Price": price,
-            "Currency": item.get("sellingStatus", {}).get("currentPrice", {}).get("@currencyId"),
-            "End Date": item.get("listingInfo", {}).get("endTime"),
-            "URL": item.get("viewItemURL")
-        })
-    return results
-
 # ==============================
-# Streamlit App - CardSight Sold Listings
+# Streamlit App
 # ==============================
-st.set_page_config(page_title="CardSight Sold", page_icon="🃏", layout="wide")
-st.title("CardSight: Sold Sports Card Lookup")
-st.info("Search for a sports card to view past sold eBay listings.")
+st.set_page_config(page_title="CardSight Sold Listings", page_icon="🃏", layout="wide")
+st.title("CardSight: Sold Listings Lookup")
+st.info("Search for a sports card to view past sold eBay sales.")
 
 # Search input
 search_term = st.text_input("Enter a card/player name:", "")
 
 if search_term:
-    with st.spinner("Fetching sold listings..."):
+    with st.spinner("Fetching sold listings from eBay..."):
         results = search_sold_ebay_cards(search_term, limit=25)
 
     if results:
@@ -109,4 +95,4 @@ if search_term:
             mime="text/csv"
         )
     else:
-        st.warning("No sold listings found or API limit reached.")
+        st.warning("No sold listings found.")

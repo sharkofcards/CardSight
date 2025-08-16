@@ -3,21 +3,24 @@ import base64
 import time
 import pandas as pd
 import streamlit as st
+import tomli
+import os
 
 # ==============================
-# Headless-safe Matplotlib setup
+# Load eBay credentials from config.toml
 # ==============================
-import matplotlib
-matplotlib.use('Agg')  # Use non-GUI backend for servers
-import matplotlib.pyplot as plt
+CONFIG_PATH = "config.toml"
 
-# ==============================
-# 🔑 eBay API credentials
-# Replace with your actual info or load from TOML
-# ==============================
-EBAY_APP_ID = "WesleyBo-CardSigh-PRD-8812e667d-492286dd"
-EBAY_CERT_ID = "PRD-812e667daac9-d0b9-48c0-a474-785c"
-EBAY_REDIRECT_URI = "CardSight-redirecturi"
+if not os.path.exists(CONFIG_PATH):
+    st.error("Missing config.toml file with eBay credentials.")
+    st.stop()
+
+with open(CONFIG_PATH, "rb") as f:
+    config = tomli.load(f)
+
+EBAY_APP_ID = config["ebay"]["app_id"]
+EBAY_CERT_ID = config["ebay"]["cert_id"]
+EBAY_REDIRECT_URI = config["ebay"]["redirect_uri"]
 
 # Token cache
 token_cache = {"access_token": None, "expires_at": 0}
@@ -87,14 +90,12 @@ def get_pop_report_links(query):
     }
 
 # ==============================
-# Streamlit App - CardSight
+# Streamlit App
 # ==============================
 st.set_page_config(page_title="CardSight", page_icon="🃏", layout="wide")
-
 st.title("CardSight: Sports Card Comp & Pop Lookup")
 st.info("Search for a sports card to view past eBay sales and grading population reports.")
 
-# Search input
 search_term = st.text_input("Enter a card/player name:", "")
 
 if search_term:
@@ -128,10 +129,31 @@ if search_term:
         col1.metric("Total Sales Found", len(df))
         col2.metric("Average Price", f"${df['Price'].mean():.2f}")
 
-        # Chart - Price Distribution
+        # Chart - Price Distribution using Streamlit
         st.subheader("📊 Price Distribution")
-        fig, ax = plt.subplots()
-        ax.hist(df["Price"], bins=10)
-        ax.set_title("Distribution of Sale Prices")
-        a
+        price_counts = df["Price"].value_counts().sort_index()
+        st.bar_chart(price_counts)
 
+        # Results
+        st.subheader("📋 Sales Results")
+        pop_links = get_pop_report_links(search_term)
+        for _, row in df.iterrows():
+            with st.expander(row["Title"], expanded=False):
+                st.write(f"💲 Price: {row['Price']} {row['Currency']}")
+                st.write(f"📅 End Date: {row['End Date']}")
+                st.markdown(f"🔗 [View on eBay]({row['URL']})")
+                st.write("📊 Population Reports:")
+                st.markdown(f"- [PSA]({pop_links['PSA']})")
+                st.markdown(f"- [BGS]({pop_links['BGS']})")
+                st.markdown(f"- [SGC]({pop_links['SGC']})")
+
+        # Download CSV
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="Download CSV",
+            data=csv,
+            file_name=f"{search_term.replace(' ', '_')}_sales.csv",
+            mime="text/csv"
+        )
+    else:
+        st.warning("No results found.")

@@ -9,7 +9,7 @@ from threading import Semaphore, Thread, Event
 import requests
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
+import altair as alt
 
 # =========================================================
 # CONFIG
@@ -220,24 +220,35 @@ if st.button("Search") and query:
                 # Price Over Time
                 # -------------------
                 st.subheader("📈 Price Trend Over Time")
-                fig, ax = plt.subplots(figsize=(8, 4))
                 df_sorted = df.sort_values("SoldDate")
-                ax.plot(df_sorted["SoldDate"], df_sorted["Price"], marker="o", linestyle="-")
-                ax.set_xlabel("Date")
-                ax.set_ylabel("Price")
-                ax.set_title("Sold Price Over Time")
-                st.pyplot(fig)
+
+                price_trend = (
+                    alt.Chart(df_sorted)
+                    .mark_line(point=True)
+                    .encode(
+                        x=alt.X("SoldDate:T", title="Date"),
+                        y=alt.Y("Price:Q", title="Price"),
+                        tooltip=["Title", "Price", "SoldDate:T", "URL"]
+                    )
+                    .interactive()
+                )
+                st.altair_chart(price_trend, use_container_width=True)
 
                 # -------------------
                 # Price Distribution
                 # -------------------
                 st.subheader("📊 Price Distribution")
-                fig2, ax2 = plt.subplots(figsize=(8, 4))
-                ax2.hist(df["Price"], bins=20, edgecolor="black")
-                ax2.set_xlabel("Price")
-                ax2.set_ylabel("Frequency")
-                ax2.set_title("Histogram of Sold Prices")
-                st.pyplot(fig2)
+
+                hist = (
+                    alt.Chart(df)
+                    .mark_bar()
+                    .encode(
+                        alt.X("Price:Q", bin=alt.Bin(maxbins=20), title="Price"),
+                        y=alt.Y("count():Q", title="Frequency"),
+                        tooltip=[alt.Tooltip("count()", title="Count")]
+                    )
+                )
+                st.altair_chart(hist, use_container_width=True)
 
         except Exception as e:
             st.error(f"Error fetching results: {e}")
